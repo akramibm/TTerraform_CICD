@@ -5,6 +5,15 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      action:
+        description: "Choose Terraform action to run"
+        required: true
+        default: "apply"
+        type: choice
+        options:
+          - apply
+          - destroy
 
 permissions:
   id-token: write
@@ -12,8 +21,12 @@ permissions:
 
 jobs:
   terraform:
-    name: "Terraform Plan / Apply"
+    name: "Terraform Plan / Apply / Destroy"
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -24,3 +37,21 @@ jobs:
           role-to-assume: arn:aws:iam::832667740061:role/github-actions1
           aws-region: us-east-1
           audience: sts.amazonaws.com
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.0
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      # Runs only on push or when manual trigger selects 'apply'
+      - name: Terraform Apply
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.action == 'apply')
+        run: terraform apply -auto-approve -input=false
+
+      # Runs ONLY when manual trigger explicitly selects 'destroy'
+      - name: Terraform Destroy
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy'
+        run: terraform destroy -auto-approve -input=false
